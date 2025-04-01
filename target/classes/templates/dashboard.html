@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedera Asset Tracker - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            padding-top: 56px;
+        }
+        .dashboard-card {
+            transition: transform 0.3s;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .metric-change {
+            font-size: 0.9rem;
+        }
+        .positive-change {
+            color: #28a745;
+        }
+        .negative-change {
+            color: #dc3545;
+        }
+        .token-table img {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+        }
+        
+        /* Dark theme styles */
+        body.dark-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card-header {
+            background-color: #2c3136;
+            border-bottom: 1px solid #444;
+        }
+        
+        body.dark-theme .bg-light {
+            background-color: #343a40 !important;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .text-muted {
+            color: #adb5bd !important;
+        }
+        
+        body.dark-theme .form-control,
+        body.dark-theme .form-select {
+            background-color: #495057;
+            color: #f8f9fa;
+            border-color: #666;
+        }
+
+        body.dark-theme .form-control:focus,
+        body.dark-theme .form-select:focus {
+            background-color: #495057;
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .table {
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .table-hover tbody tr:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.075);
+        }
+        
+        body.dark-theme .footer {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="bi bi-bar-chart-line-fill"></i> Hedera Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tokens">Tokens</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/transactions">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            Alerts <span class="badge rounded-pill bg-danger" id="alertCount">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analytics">Analytics</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Stocks
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/stocks">Global Stocks</a></li>
+                            <li><a class="dropdown-item" href="/stocks/kenya">Kenyan Stocks</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <div class="dropdown me-3">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="networkSelector" data-bs-toggle="dropdown">
+                            <i class="bi bi-hdd-network"></i> <span id="currentNetwork">Network</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item network-option" href="#" data-network="MAINNET">Mainnet</a></li>
+                            <li><a class="dropdown-item network-option" href="#" data-network="TESTNET">Testnet</a></li>
+                        </ul>
+                    </div>
+                    <div class="dropdown" sec:authorize="isAuthenticated()">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> <span sec:authentication="name">User</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/profile"><i class="bi bi-gear"></i> Profile</a></li>
+                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-sliders"></i> Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form th:action="@{/logout}" method="post">
+                                    <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Logout</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h1>Dashboard</h1>
+                <p>Welcome to the Hedera Asset Tracker. Here's your network overview.</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" id="timeRangeButtons">
+                    <button type="button" class="btn btn-outline-primary" data-range="24h">24h</button>
+                    <button type="button" class="btn btn-primary" data-range="7d">7d</button>
+                    <button type="button" class="btn btn-outline-primary" data-range="30d">30d</button>
+                    <button type="button" class="btn btn-outline-primary" data-range="all">All</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Total Transactions</h6>
+                        <p class="metric-value" id="totalTransactions">142,756</p>
+                        <p class="metric-change positive-change">
+                            <i class="bi bi-arrow-up"></i> 12.3% from last period
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Active Tokens</h6>
+                        <p class="metric-value" id="activeTokens">723</p>
+                        <p class="metric-change positive-change">
+                            <i class="bi bi-arrow-up"></i> 5.8% from last period
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Network TPS</h6>
+                        <p class="metric-value" id="tps">23.4</p>
+                        <p class="metric-change negative-change">
+                            <i class="bi bi-arrow-down"></i> 2.1% from last period
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Open Alerts</h6>
+                        <p class="metric-value" id="openAlerts">8</p>
+                        <p class="metric-change">
+                            <span class="badge bg-warning">3 Critical</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction Activity Chart -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Transaction Activity</h5>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" id="hourlyBtn">Hour</button>
+                            <button type="button" class="btn btn-secondary" id="dailyBtn">Day</button>
+                            <button type="button" class="btn btn-outline-secondary" id="weeklyBtn">Week</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="transactionChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Tokens & Recent Transactions -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card dashboard-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Top Tokens by Volume</h5>
+                        <a href="/tokens" class="btn btn-sm btn-outline-primary">View All</a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover token-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Volume (24h)</th>
+                                        <th>Price</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topTokensBody">
+                                    <!-- Placeholder content, would be dynamically populated -->
+                                    <tr>
+                                        <td><img src="https://via.placeholder.com/24" alt="HBAR"/> HBAR</td>
+                                        <td>$12,345,678</td>
+                                        <td>$0.0823</td>
+                                        <td class="positive-change">+3.2%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><img src="https://via.placeholder.com/24" alt="SaucerSwap"/> SAUCE</td>
+                                        <td>$2,345,678</td>
+                                        <td>$0.0145</td>
+                                        <td class="negative-change">-1.4%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><img src="https://via.placeholder.com/24" alt="HeadStarter"/> HST</td>
+                                        <td>$1,345,678</td>
+                                        <td>$0.0035</td>
+                                        <td class="positive-change">+2.1%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><img src="https://via.placeholder.com/24" alt="USDC"/> USDC</td>
+                                        <td>$945,678</td>
+                                        <td>$0.9998</td>
+                                        <td class="negative-change">-0.01%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><img src="https://via.placeholder.com/24" alt="HBARx"/> HBARx</td>
+                                        <td>$845,678</td>
+                                        <td>$0.0885</td>
+                                        <td class="positive-change">+4.2%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card dashboard-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Transactions</h5>
+                        <a href="/transactions" class="btn btn-sm btn-outline-primary">View All</a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Accounts</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentTransactionsBody">
+                                    <!-- Placeholder content, would be dynamically populated -->
+                                    <tr>
+                                        <td>2 min ago</td>
+                                        <td><span class="badge bg-success">Transfer</span></td>
+                                        <td>0x1a2b...3c4d → 0x5e6f...7g8h</td>
+                                        <td>124.5 HBAR</td>
+                                    </tr>
+                                    <tr>
+                                        <td>10 min ago</td>
+                                        <td><span class="badge bg-primary">Mint</span></td>
+                                        <td>0x9i8u...7y6t → 0x5r4e...3w2q</td>
+                                        <td>1,000 SAUCE</td>
+                                    </tr>
+                                    <tr>
+                                        <td>15 min ago</td>
+                                        <td><span class="badge bg-warning">Swap</span></td>
+                                        <td>0x1q2w...3e4r → 0x5t6y...7u8i</td>
+                                        <td>450 HBAR → 6,750 HST</td>
+                                    </tr>
+                                    <tr>
+                                        <td>32 min ago</td>
+                                        <td><span class="badge bg-info">Stake</span></td>
+                                        <td>0xa1s2...d3f4 → 0xg5h6...j7k8</td>
+                                        <td>2,500 HBAR</td>
+                                    </tr>
+                                    <tr>
+                                        <td>45 min ago</td>
+                                        <td><span class="badge bg-danger">Burn</span></td>
+                                        <td>0xz1x2...c3v4 → 0xb5n6...m7k8</td>
+                                        <td>500 SAUCE</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Alerts -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Alerts</h5>
+                        <a href="/alerts" class="btn btn-sm btn-outline-primary">View All</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group" id="alertsContainer">
+                            <!-- Placeholder content, would be dynamically populated -->
+                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-danger me-2">Critical</span>
+                                    <strong>Large Transaction Detected</strong>
+                                    <p class="mb-1 text-muted">1,000,000 HBAR transferred from 0x12ab...34cd to 0x78ef...90gh</p>
+                                </div>
+                                <small class="text-muted">15m ago</small>
+                            </div>
+                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-warning me-2">Warning</span>
+                                    <strong>Unusual Trading Activity</strong>
+                                    <p class="mb-1 text-muted">Detected abnormal trading volume for token HST</p>
+                                </div>
+                                <small class="text-muted">1h ago</small>
+                            </div>
+                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-info me-2">Info</span>
+                                    <strong>New Token Created</strong>
+                                    <p class="mb-1 text-muted">Token NewDeFi (NDEFI) has been created and deployed</p>
+                                </div>
+                                <small class="text-muted">3h ago</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-4">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 Hedera Asset Tracker - <a href="https://hedera.com" target="_blank">Hedera</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    
+    <script>
+        // Global state
+        let currentTimeRange = '7d'; // Default time range
+        let currentChartPeriod = 'daily'; // Default chart period
+        
+        $(document).ready(function() {
+            // Initialize data
+            initializeCharts(currentChartPeriod); // Default to daily view
+            initializeWebSocket();
+            fetchDashboardData(currentTimeRange);
+            
+            // Time period button handlers for chart granularity
+            $('#hourlyBtn').click(function() {
+                $('.btn-group-sm .btn').removeClass('btn-secondary').addClass('btn-outline-secondary');
+                $(this).removeClass('btn-outline-secondary').addClass('btn-secondary');
+                currentChartPeriod = 'hourly';
+                updateChart(currentChartPeriod, currentTimeRange);
+            });
+            
+            $('#dailyBtn').click(function() {
+                $('.btn-group-sm .btn').removeClass('btn-secondary').addClass('btn-outline-secondary');
+                $(this).removeClass('btn-outline-secondary').addClass('btn-secondary');
+                currentChartPeriod = 'daily';
+                updateChart(currentChartPeriod, currentTimeRange);
+            });
+            
+            $('#weeklyBtn').click(function() {
+                $('.btn-group-sm .btn').removeClass('btn-secondary').addClass('btn-outline-secondary');
+                $(this).removeClass('btn-outline-secondary').addClass('btn-secondary');
+                currentChartPeriod = 'weekly';
+                updateChart(currentChartPeriod, currentTimeRange);
+            });
+            
+            // Global time range button handlers
+            $('#timeRangeButtons .btn').click(function() {
+                $('#timeRangeButtons .btn').removeClass('btn-primary').addClass('btn-outline-primary');
+                $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+                
+                currentTimeRange = $(this).data('range');
+                fetchDashboardData(currentTimeRange);
+                updateChart(currentChartPeriod, currentTimeRange);
+            });
+        });
+        
+        let transactionChart; // Global chart reference to update it
+        
+        function initializeCharts(period) {
+            // Transaction activity chart
+            const ctx = document.getElementById('transactionChart').getContext('2d');
+            
+            // Create chart with initial data
+            const chartData = getChartDataForPeriod(period, currentTimeRange);
+            
+            transactionChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: getChartTitle(period, currentTimeRange)
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateChart(period, timeRange) {
+            const newData = getChartDataForPeriod(period, timeRange);
+            
+            // Update chart data
+            transactionChart.data.labels = newData.labels;
+            transactionChart.data.datasets[0].data = newData.datasets[0].data;
+            
+            // Update chart title based on period and time range
+            transactionChart.options.plugins.title.text = getChartTitle(period, timeRange);
+            
+            transactionChart.update();
+        }
+        
+        function getChartTitle(period, timeRange) {
+            let title = 'Transaction Activity';
+            
+            if (timeRange === '24h') {
+                title += ' (Last 24 Hours)';
+            } else if (timeRange === '7d') {
+                title += ' (Last 7 Days)';
+            } else if (timeRange === '30d') {
+                title += ' (Last 30 Days)';
+            } else if (timeRange === 'all') {
+                title += ' (All Time)';
+            }
+            
+            return title;
+        }
+        
+        function getChartDataForPeriod(period, timeRange) {
+            let labels;
+            let values;
+            
+            // Get current network to change chart data
+            const currentNetwork = document.getElementById('currentNetwork').textContent;
+            const isMainnet = currentNetwork === 'MAINNET';
+            const multiplier = isMainnet ? 1 : 0.6; // Testnet has less activity
+            
+            if (period === 'hourly') {
+                // Hourly data
+                if (timeRange === '24h') {
+                    // 24 hours with hourly data
+                    labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+                    values = Array.from({length: 24}, () => Math.floor((Math.random() * 50) + 10) * multiplier);
+                } else {
+                    // Default to 24 hours for other time ranges when using hourly view
+                    labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+                    values = Array.from({length: 24}, () => Math.floor((Math.random() * 50) + 10) * multiplier);
+                }
+            } else if (period === 'daily') {
+                // Daily data
+                if (timeRange === '7d') {
+                    // 7 days
+                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    const today = new Date().getDay();
+                    labels = Array.from({length: 7}, (_, i) => days[(today - 6 + i + 7) % 7]);
+                    values = Array.from({length: 7}, () => Math.floor((Math.random() * 300) + 100) * multiplier);
+                } else if (timeRange === '30d') {
+                    // 30 days
+                    labels = Array.from({length: 30}, (_, i) => `Day ${i+1}`);
+                    values = Array.from({length: 30}, () => Math.floor((Math.random() * 300) + 100) * multiplier);
+                } else if (timeRange === 'all') {
+                    // All time (use 60 days for demonstration)
+                    labels = Array.from({length: 60}, (_, i) => `Day ${i+1}`);
+                    values = Array.from({length: 60}, () => Math.floor((Math.random() * 300) + 100) * multiplier);
+                } else {
+                    // Default to 7 days
+                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    const today = new Date().getDay();
+                    labels = Array.from({length: 7}, (_, i) => days[(today - 6 + i + 7) % 7]);
+                    values = Array.from({length: 7}, () => Math.floor((Math.random() * 300) + 100) * multiplier);
+                }
+            } else if (period === 'weekly') {
+                // Weekly data
+                if (timeRange === '30d') {
+                    // ~4 weeks for 30 days
+                    labels = Array.from({length: 4}, (_, i) => `Week ${i+1}`);
+                    values = Array.from({length: 4}, () => Math.floor((Math.random() * 1000) + 500) * multiplier);
+                } else if (timeRange === 'all') {
+                    // All time (use 12 weeks for demonstration)
+                    labels = Array.from({length: 12}, (_, i) => `Week ${i+1}`);
+                    values = Array.from({length: 12}, () => Math.floor((Math.random() * 1000) + 500) * multiplier);
+                } else {
+                    // Default weekly view shows a few weeks
+                    labels = Array.from({length: 4}, (_, i) => `Week ${i+1}`);
+                    values = Array.from({length: 4}, () => Math.floor((Math.random() * 1000) + 500) * multiplier);
+                }
+            }
+            
+            // For testnet, use a different color scheme
+            const borderColor = isMainnet ? 'rgba(54, 162, 235, 1)' : 'rgba(255, 99, 132, 1)';
+            const backgroundColor = isMainnet ? 'rgba(54, 162, 235, 0.2)' : 'rgba(255, 99, 132, 0.2)';
+            
+            return {
+                labels: labels,
+                datasets: [{
+                    label: 'Transactions',
+                    data: values,
+                    borderColor: borderColor,
+                    backgroundColor: backgroundColor,
+                    fill: true,
+                    tension: 0.4
+                }]
+            };
+        }
+        
+        function fetchDashboardData(timeRange) {
+            // This would fetch actual data from the backend API based on time range
+            console.log('Fetching dashboard data for time range:', timeRange);
+            
+            // Get current network to show different data
+            const currentNetwork = document.getElementById('currentNetwork').textContent;
+            const isMainnet = currentNetwork === 'MAINNET';
+            
+            // Update metrics based on selected time range and network
+            if (timeRange === '24h') {
+                if (isMainnet) {
+                    $('#totalTransactions').text('42,756');
+                    $('#activeTokens').text('423');
+                    $('#tps').text('18.4');
+                    $('#openAlerts').text('3');
+                } else { // Testnet
+                    $('#totalTransactions').text('12,358');
+                    $('#activeTokens').text('197');
+                    $('#tps').text('8.7');
+                    $('#openAlerts').text('1');
+                }
+            } else if (timeRange === '7d') {
+                if (isMainnet) {
+                    $('#totalTransactions').text('142,756');
+                    $('#activeTokens').text('723');
+                    $('#tps').text('23.4');
+                    $('#openAlerts').text('8');
+                } else { // Testnet
+                    $('#totalTransactions').text('85,231');
+                    $('#activeTokens').text('312');
+                    $('#tps').text('14.2');
+                    $('#openAlerts').text('4');
+                }
+            } else if (timeRange === '30d') {
+                if (isMainnet) {
+                    $('#totalTransactions').text('589,245');
+                    $('#activeTokens').text('927');
+                    $('#tps').text('20.1');
+                    $('#openAlerts').text('12');
+                } else { // Testnet
+                    $('#totalTransactions').text('274,569');
+                    $('#activeTokens').text('435');
+                    $('#tps').text('11.3');
+                    $('#openAlerts').text('7');
+                }
+            } else if (timeRange === 'all') {
+                if (isMainnet) {
+                    $('#totalTransactions').text('3,428,756');
+                    $('#activeTokens').text('1,243');
+                    $('#tps').text('22.7');
+                    $('#openAlerts').text('15');
+                } else { // Testnet
+                    $('#totalTransactions').text('1,756,243');
+                    $('#activeTokens').text('567');
+                    $('#tps').text('13.5');
+                    $('#openAlerts').text('9');
+                }
+            }
+            
+            // Update token table based on network
+            updateTokenTable(isMainnet);
+            
+            // Update recent transactions based on network
+            updateTransactionTable(isMainnet);
+        }
+        
+        function updateTokenTable(isMainnet) {
+            const mainnetTokens = `
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="HBAR"/> HBAR</td>
+                    <td>$12,345,678</td>
+                    <td>$0.0823</td>
+                    <td class="positive-change">+3.2%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="SaucerSwap"/> SAUCE</td>
+                    <td>$2,345,678</td>
+                    <td>$0.0145</td>
+                    <td class="negative-change">-1.4%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="HeadStarter"/> HST</td>
+                    <td>$1,345,678</td>
+                    <td>$0.0035</td>
+                    <td class="positive-change">+2.1%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="USDC"/> USDC</td>
+                    <td>$945,678</td>
+                    <td>$0.9998</td>
+                    <td class="negative-change">-0.01%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="HBARx"/> HBARx</td>
+                    <td>$845,678</td>
+                    <td>$0.0885</td>
+                    <td class="positive-change">+4.2%</td>
+                </tr>
+            `;
+            
+            const testnetTokens = `
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="HBAR"/> HBAR</td>
+                    <td>$5,678,423</td>
+                    <td>$0.0823</td>
+                    <td class="positive-change">+1.8%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="TestToken"/> TEST</td>
+                    <td>$1,234,567</td>
+                    <td>$0.0053</td>
+                    <td class="positive-change">+5.7%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="DevToken"/> DEV</td>
+                    <td>$867,543</td>
+                    <td>$0.0022</td>
+                    <td class="negative-change">-2.3%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="USDC"/> USDC</td>
+                    <td>$432,156</td>
+                    <td>$0.9999</td>
+                    <td class="positive-change">+0.01%</td>
+                </tr>
+                <tr>
+                    <td><img src="https://via.placeholder.com/24" alt="BetaToken"/> BETA</td>
+                    <td>$321,456</td>
+                    <td>$0.0042</td>
+                    <td class="negative-change">-1.3%</td>
+                </tr>
+            `;
+            
+            $('#topTokensBody').html(isMainnet ? mainnetTokens : testnetTokens);
+        }
+        
+        function updateTransactionTable(isMainnet) {
+            const mainnetTransactions = `
+                <tr>
+                    <td>2 min ago</td>
+                    <td><span class="badge bg-success">Transfer</span></td>
+                    <td>0x1a2b...3c4d → 0x5e6f...7g8h</td>
+                    <td>124.5 HBAR</td>
+                </tr>
+                <tr>
+                    <td>10 min ago</td>
+                    <td><span class="badge bg-primary">Mint</span></td>
+                    <td>0x9i8u...7y6t → 0x5r4e...3w2q</td>
+                    <td>1,000 SAUCE</td>
+                </tr>
+                <tr>
+                    <td>15 min ago</td>
+                    <td><span class="badge bg-warning">Swap</span></td>
+                    <td>0x1q2w...3e4r → 0x5t6y...7u8i</td>
+                    <td>450 HBAR → 6,750 HST</td>
+                </tr>
+                <tr>
+                    <td>32 min ago</td>
+                    <td><span class="badge bg-info">Stake</span></td>
+                    <td>0xa1s2...d3f4 → 0xg5h6...j7k8</td>
+                    <td>2,500 HBAR</td>
+                </tr>
+                <tr>
+                    <td>45 min ago</td>
+                    <td><span class="badge bg-danger">Burn</span></td>
+                    <td>0xz1x2...c3v4 → 0xb5n6...m7k8</td>
+                    <td>500 SAUCE</td>
+                </tr>
+            `;
+            
+            const testnetTransactions = `
+                <tr>
+                    <td>5 min ago</td>
+                    <td><span class="badge bg-success">Transfer</span></td>
+                    <td>0xtest...1234 → 0xdev...5678</td>
+                    <td>50.0 HBAR</td>
+                </tr>
+                <tr>
+                    <td>18 min ago</td>
+                    <td><span class="badge bg-primary">Mint</span></td>
+                    <td>0xdev...9876 → 0xtest...5432</td>
+                    <td>500 TEST</td>
+                </tr>
+                <tr>
+                    <td>23 min ago</td>
+                    <td><span class="badge bg-warning">Swap</span></td>
+                    <td>0xbeta...abcd → 0xdev...efgh</td>
+                    <td>200 HBAR → 1,400 DEV</td>
+                </tr>
+                <tr>
+                    <td>41 min ago</td>
+                    <td><span class="badge bg-info">Stake</span></td>
+                    <td>0xtest...ijkl → 0xdev...mnop</td>
+                    <td>1,200 HBAR</td>
+                </tr>
+                <tr>
+                    <td>55 min ago</td>
+                    <td><span class="badge bg-danger">Burn</span></td>
+                    <td>0xdev...qrst → 0xtest...uvwx</td>
+                    <td>250 BETA</td>
+                </tr>
+            `;
+            
+            $('#recentTransactionsBody').html(isMainnet ? mainnetTransactions : testnetTransactions);
+        }
+        
+        function initializeWebSocket() {
+            // Connect to WebSocket for real-time updates
+            const socket = new SockJS('/ws');
+            const stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function() {
+                // Subscribe to transaction updates
+                stompClient.subscribe('/topic/transactions', function(message) {
+                    const transaction = JSON.parse(message.body);
+                    // Update UI with new transaction
+                    updateTransactions(transaction);
+                });
+                
+                // Subscribe to alert updates
+                stompClient.subscribe('/topic/alerts', function(message) {
+                    const alert = JSON.parse(message.body);
+                    // Update UI with new alert
+                    updateAlerts(alert);
+                });
+            });
+        }
+        
+        function updateTransactions(transaction) {
+            // Add new transaction to the top of the list
+            const transactionRow = `
+                <tr class="new-transaction">
+                    <td>Just now</td>
+                    <td><span class="badge bg-${getTransactionBadgeColor(transaction.type)}">${transaction.type}</span></td>
+                    <td>${transaction.from} → ${transaction.to}</td>
+                    <td>${transaction.amount}</td>
+                </tr>
+            `;
+            
+            $('#recentTransactionsBody').prepend(transactionRow);
+            
+            // Remove the oldest transaction
+            if ($('#recentTransactionsBody tr').length > 5) {
+                $('#recentTransactionsBody tr:last').remove();
+            }
+        }
+        
+        function updateAlerts(alert) {
+            // Add new alert to the top of the list
+            const alertItem = `
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-${getAlertBadgeColor(alert.severity)} me-2">${alert.severity}</span>
+                        <strong>${alert.title}</strong>
+                        <p class="mb-1 text-muted">${alert.description}</p>
+                    </div>
+                    <small class="text-muted">Just now</small>
+                </div>
+            `;
+            
+            $('#alertsContainer').prepend(alertItem);
+            
+            // Remove the oldest alert
+            if ($('#alertsContainer .list-group-item').length > 3) {
+                $('#alertsContainer .list-group-item:last').remove();
+            }
+            
+            // Update alert count
+            const currentCount = parseInt($('#alertCount').text());
+            $('#alertCount').text(currentCount + 1);
+            $('#openAlerts').text(currentCount + 1);
+        }
+        
+        function getTransactionBadgeColor(type) {
+            const colors = {
+                'Transfer': 'success',
+                'Mint': 'primary',
+                'Swap': 'warning',
+                'Stake': 'info',
+                'Burn': 'danger'
+            };
+            return colors[type] || 'secondary';
+        }
+        
+        function getAlertBadgeColor(severity) {
+            const colors = {
+                'Critical': 'danger',
+                'Warning': 'warning',
+                'Info': 'info'
+            };
+            return colors[severity] || 'secondary';
+        }
+
+        // Apply theme from localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+            
+            // Load current network
+            fetchCurrentNetwork().then(() => {
+                // After network is loaded, update dashboard data
+                fetchDashboardData(currentTimeRange);
+            });
+            
+            // Setup network switching
+            document.querySelectorAll('.network-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const network = this.getAttribute('data-network');
+                    switchNetwork(network);
+                });
+            });
+        });
+        
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                // Check system preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+                
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (localStorage.getItem('theme') === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('dark-theme');
+                        } else {
+                            document.body.classList.remove('dark-theme');
+                        }
+                    }
+                });
+            } else if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+            } else {
+                document.body.classList.remove('dark-theme');
+            }
+        }
+        
+        // Fetch current network from API
+        function fetchCurrentNetwork() {
+            return fetch('/api/config/network')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('currentNetwork').textContent = data.network;
+                    return data.network;
+                })
+                .catch(error => {
+                    console.error('Error fetching network:', error);
+                    document.getElementById('currentNetwork').textContent = 'Unknown';
+                    return 'Unknown';
+                });
+        }
+        
+        // Switch network via API
+        function switchNetwork(network) {
+            fetch('/api/config/network', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ network: network })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('currentNetwork').textContent = data.network;
+                // Reload data with new network
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error switching network:', error);
+                alert('Failed to switch network. Please try again.');
+            });
+        }
+    </script>
+</body>
+</html> 

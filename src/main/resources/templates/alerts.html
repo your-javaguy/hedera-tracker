@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedera Asset Tracker - Alerts</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            padding-top: 56px;
+        }
+        .alert-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.65rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+        }
+        
+        /* Dark theme styles */
+        body.dark-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card-header {
+            background-color: #2c3136;
+            border-bottom: 1px solid #444;
+        }
+        
+        body.dark-theme .table {
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .bg-light {
+            background-color: #343a40 !important;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .text-muted {
+            color: #adb5bd !important;
+        }
+        
+        body.dark-theme .list-group-item {
+            background-color: #343a40;
+            color: #f8f9fa;
+            border-color: #444;
+        }
+        
+        body.dark-theme .nav-link {
+            color: #adb5bd;
+        }
+        
+        body.dark-theme .nav-link.active {
+            color: #fff !important;
+        }
+        
+        body.dark-theme .nav-tabs {
+            border-color: #444;
+        }
+        
+        body.dark-theme .nav-tabs .nav-link:hover {
+            border-color: #444;
+        }
+        
+        body.dark-theme .form-control,
+        body.dark-theme .form-select {
+            background-color: #495057;
+            color: #f8f9fa;
+            border-color: #666;
+        }
+
+        body.dark-theme .form-control:focus,
+        body.dark-theme .form-select:focus {
+            background-color: #495057;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-bar-chart-line-fill me-2"></i>Hedera Asset Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tokens">Tokens</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/transactions">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/alerts">
+                            Alerts
+                            <span class="badge bg-danger" id="alertBadge" th:text="${unacknowledgedAlerts != null ? unacknowledgedAlerts.size() : '0'}">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analytics">Analytics</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> <span sec:authentication="name">User</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/profile"><i class="bi bi-gear"></i> Profile</a></li>
+                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-sliders"></i> Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form th:action="@{/logout}" method="post">
+                                    <button class="dropdown-item" type="submit"><i class="bi bi-box-arrow-right"></i> Logout</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        <h1 class="mb-4">Hedera Network Alerts</h1>
+        
+        <!-- Alert Categories -->
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#all-alerts">All Alerts</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#unacknowledged">Unacknowledged</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#high-value">High Value</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#whale-activity">Whale Activity</a>
+            </li>
+        </ul>
+        
+        <!-- Alert Lists -->
+        <div class="tab-content">
+            <!-- All Alerts -->
+            <div class="tab-pane fade show active" id="all-alerts">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Alert Type</th>
+                                <th>Token</th>
+                                <th>Description</th>
+                                <th>Transaction ID</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alertsTable">
+                            <tr th:each="alert : ${alerts}" th:class="${!alert.acknowledged ? 'table-danger' : ''}">
+                                <td th:text="${#temporals.format(alert.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2025-01-01 00:00:00</td>
+                                <td th:text="${alert.alertType}">Type</td>
+                                <td>
+                                    <a th:if="${alert.tokenId != null}" th:href="@{'/tokens/' + ${alert.tokenId}}" th:text="${alert.tokenSymbol != null ? alert.tokenSymbol : alert.tokenId}">Token</a>
+                                    <span th:unless="${alert.tokenId != null}">-</span>
+                                </td>
+                                <td th:text="${alert.description}">Description</td>
+                                <td>
+                                    <a th:if="${alert.transactionId != null}" href="#" th:text="${alert.transactionId}">Transaction ID</a>
+                                    <span th:unless="${alert.transactionId != null}">-</span>
+                                </td>
+                                <td>
+                                    <span class="badge" th:classappend="${alert.acknowledged ? 'bg-success' : 'bg-danger'}" th:text="${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}">Status</span>
+                                </td>
+                                <td>
+                                    <form th:action="@{/api/alerts/acknowledge}" method="post" class="d-inline">
+                                        <input type="hidden" name="alertId" th:value="${alert.id}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" 
+                                            th:disabled="${alert.acknowledged}">
+                                            Acknowledge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Unacknowledged Alerts -->
+            <div class="tab-pane fade" id="unacknowledged">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Alert Type</th>
+                                <th>Token</th>
+                                <th>Description</th>
+                                <th>Transaction ID</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="alert : ${unacknowledgedAlerts}" class="table-danger">
+                                <td th:text="${#temporals.format(alert.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2023-01-01 00:00:00</td>
+                                <td th:text="${alert.alertType}">Type</td>
+                                <td>
+                                    <a th:if="${alert.tokenId != null}" th:href="@{'/tokens/' + ${alert.tokenId}}" th:text="${alert.tokenSymbol != null ? alert.tokenSymbol : alert.tokenId}">Token</a>
+                                    <span th:unless="${alert.tokenId != null}">-</span>
+                                </td>
+                                <td th:text="${alert.description}">Description</td>
+                                <td>
+                                    <a th:if="${alert.transactionId != null}" href="#" th:text="${alert.transactionId}">Transaction ID</a>
+                                    <span th:unless="${alert.transactionId != null}">-</span>
+                                </td>
+                                <td>
+                                    <form th:action="@{/api/alerts/acknowledge}" method="post" class="d-inline">
+                                        <input type="hidden" name="alertId" th:value="${alert.id}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            Acknowledge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- High Value Alerts -->
+            <div class="tab-pane fade" id="high-value">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Token</th>
+                                <th>Description</th>
+                                <th>Transaction ID</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="alert : ${alerts}" th:if="${alert.alertType == 'HIGH_VALUE'}" th:class="${!alert.acknowledged ? 'table-danger' : ''}">
+                                <td th:text="${#temporals.format(alert.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2023-01-01 00:00:00</td>
+                                <td>
+                                    <a th:if="${alert.tokenId != null}" th:href="@{'/tokens/' + ${alert.tokenId}}" th:text="${alert.tokenSymbol != null ? alert.tokenSymbol : alert.tokenId}">Token</a>
+                                    <span th:unless="${alert.tokenId != null}">-</span>
+                                </td>
+                                <td th:text="${alert.description}">Description</td>
+                                <td>
+                                    <a th:if="${alert.transactionId != null}" href="#" th:text="${alert.transactionId}">Transaction ID</a>
+                                    <span th:unless="${alert.transactionId != null}">-</span>
+                                </td>
+                                <td>
+                                    <span class="badge" th:classappend="${alert.acknowledged ? 'bg-success' : 'bg-danger'}" th:text="${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}">Status</span>
+                                </td>
+                                <td>
+                                    <form th:action="@{/api/alerts/acknowledge}" method="post" class="d-inline">
+                                        <input type="hidden" name="alertId" th:value="${alert.id}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" 
+                                            th:disabled="${alert.acknowledged}">
+                                            Acknowledge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Whale Activity Alerts -->
+            <div class="tab-pane fade" id="whale-activity">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Token</th>
+                                <th>Description</th>
+                                <th>Transaction ID</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="alert : ${alerts}" th:if="${alert.alertType == 'WHALE_ACTIVITY'}" th:class="${!alert.acknowledged ? 'table-danger' : ''}">
+                                <td th:text="${#temporals.format(alert.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2023-01-01 00:00:00</td>
+                                <td>
+                                    <a th:if="${alert.tokenId != null}" th:href="@{'/tokens/' + ${alert.tokenId}}" th:text="${alert.tokenSymbol != null ? alert.tokenSymbol : alert.tokenId}">Token</a>
+                                    <span th:unless="${alert.tokenId != null}">-</span>
+                                </td>
+                                <td th:text="${alert.description}">Description</td>
+                                <td>
+                                    <a th:if="${alert.transactionId != null}" href="#" th:text="${alert.transactionId}">Transaction ID</a>
+                                    <span th:unless="${alert.transactionId != null}">-</span>
+                                </td>
+                                <td>
+                                    <span class="badge" th:classappend="${alert.acknowledged ? 'bg-success' : 'bg-danger'}" th:text="${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}">Status</span>
+                                </td>
+                                <td>
+                                    <form th:action="@{/api/alerts/acknowledge}" method="post" class="d-inline">
+                                        <input type="hidden" name="alertId" th:value="${alert.id}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" 
+                                            th:disabled="${alert.acknowledged}">
+                                            Acknowledge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-4">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 Hedera Asset Tracker - <a href="https://hedera.com" target="_blank">Hedera</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    
+    <script>
+        // Apply theme from localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+            
+            // Connect to WebSocket for real-time updates
+            connect();
+            
+            // Handle form submissions via AJAX to prevent page reload
+            setupFormHandlers();
+        });
+        
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                // Check system preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+                
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (localStorage.getItem('theme') === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('dark-theme');
+                        } else {
+                            document.body.classList.remove('dark-theme');
+                        }
+                    }
+                });
+            } else if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+            } else {
+                document.body.classList.remove('dark-theme');
+            }
+        }
+    
+        // Connect to WebSocket for real-time alerts
+        let stompClient = null;
+        
+        function connect() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                stompClient.subscribe('/topic/alerts', function(alertMessage) {
+                    const alert = JSON.parse(alertMessage.body);
+                    addNewAlert(alert);
+                });
+                
+                // Subscribe to alerts count topic for badge updates
+                stompClient.subscribe('/topic/alerts/count', function(countMessage) {
+                    const count = JSON.parse(countMessage.body);
+                    console.log('Unacknowledged count updated:', count);
+                    
+                    // Update the badge count
+                    $('#alertBadge').text(count);
+                });
+                
+                // Subscribe to unacknowledged alerts for updates
+                stompClient.subscribe('/topic/alerts/unacknowledged', function(alertsMessage) {
+                    const alerts = JSON.parse(alertsMessage.body);
+                    console.log('Unacknowledged alerts updated:', alerts);
+                    
+                    // Update the unacknowledged tab
+                    refreshUnacknowledgedTab(alerts);
+                });
+                
+                // Subscribe to all alerts for updates
+                stompClient.subscribe('/topic/alerts/all', function(alertsMessage) {
+                    const alerts = JSON.parse(alertsMessage.body);
+                    console.log('All alerts updated:', alerts);
+                    
+                    // Update all tabs
+                    refreshAllAlertsTabs(alerts);
+                });
+            });
+        }
+        
+        function setupFormHandlers() {
+            // Handle acknowledge form submissions
+            $(document).on('submit', '.acknowledge-form', function(e) {
+                e.preventDefault();
+                const form = $(this);
+                const url = form.attr('action');
+                
+                $.post(url, form.serialize(), function(response) {
+                    // Success handling - WebSocket will update UI
+                    console.log('Alert acknowledged successfully');
+                }).fail(function(error) {
+                    console.error('Error acknowledging alert:', error);
+                });
+            });
+        }
+        
+        function addNewAlert(alert) {
+            // Add new alert to all relevant tabs
+            const alertRow = createAlertRow(alert);
+            
+            // Add to All Alerts tab
+            $('#alertsTable tbody').prepend(alertRow);
+            
+            // If unacknowledged, add to that tab too
+            if (!alert.acknowledged) {
+                $('#unacknowledged table tbody').prepend(alertRow.clone());
+            }
+            
+            // Add to specific category tabs if applicable
+            if (alert.alertType === 'HIGH_VALUE') {
+                $('#high-value table tbody').prepend(alertRow.clone());
+            } else if (alert.alertType === 'WHALE_ACTIVITY') {
+                $('#whale-activity table tbody').prepend(alertRow.clone());
+            }
+            
+            // Update badge count
+            const currentCount = parseInt($('#alertBadge').text()) || 0;
+            if (!alert.acknowledged) {
+                $('#alertBadge').text(currentCount + 1);
+            }
+            
+            // Highlight the new row
+            alertRow.addClass('new-alert');
+            setTimeout(function() {
+                alertRow.removeClass('new-alert');
+            }, 2000);
+        }
+        
+        function createAlertRow(alert) {
+            const timestamp = new Date(alert.createdAt).toLocaleString();
+            const row = $('<tr>');
+            
+            row.append($('<td>').text(timestamp));
+            row.append($('<td>').text(alert.alertType.replace('_', ' ')));
+            
+            // Token cell
+            if (alert.tokenId) {
+                row.append($('<td><a href="/tokens/' + alert.tokenId + '">' + (alert.tokenSymbol || alert.tokenId) + '</a></td>'));
+            } else {
+                row.append('<td>-</td>');
+            }
+            
+            row.append($('<td>').text(alert.description));
+            
+            // Transaction ID cell
+            if (alert.transactionId) {
+                row.append($('<td><a href="#">' + alert.transactionId + '</a></td>'));
+            } else {
+                row.append('<td>-</td>');
+            }
+            
+            // Status cell
+            const statusCell = $('<td>');
+            if (alert.acknowledged) {
+                statusCell.html('<span class="badge bg-success">Acknowledged</span>');
+            } else {
+                statusCell.html('<span class="badge bg-warning">Pending</span>');
+            }
+            row.append(statusCell);
+            
+            // Actions cell
+            const actionCell = $('<td>');
+            if (!alert.acknowledged) {
+                const form = $('<form>').addClass('acknowledge-form').attr('action', '/api/alerts/acknowledge').attr('method', 'post');
+                form.append($('<input>').attr('type', 'hidden').attr('name', 'alertId').val(alert.id));
+                form.append($('<button>').addClass('btn btn-sm btn-primary').text('Acknowledge'));
+                actionCell.append(form);
+            } else {
+                actionCell.html('<i class="bi bi-check-circle-fill text-success"></i>');
+            }
+            row.append(actionCell);
+            
+            return row;
+        }
+        
+        function refreshUnacknowledgedTab(alerts) {
+            const tbody = $('#unacknowledged table tbody');
+            tbody.empty();
+            
+            alerts.forEach(function(alert) {
+                tbody.append(createAlertRow(alert));
+            });
+        }
+        
+        function refreshAllAlertsTabs(alerts) {
+            // Refresh All Alerts tab
+            const allTbody = $('#alertsTable tbody');
+            allTbody.empty();
+            
+            // Refresh High Value tab
+            const highValueTbody = $('#high-value table tbody');
+            highValueTbody.empty();
+            
+            // Refresh Whale Activity tab
+            const whaleTbody = $('#whale-activity table tbody');
+            whaleTbody.empty();
+            
+            alerts.forEach(function(alert) {
+                allTbody.append(createAlertRow(alert));
+                
+                if (alert.alertType === 'HIGH_VALUE') {
+                    highValueTbody.append(createAlertRow(alert));
+                } else if (alert.alertType === 'WHALE_ACTIVITY') {
+                    whaleTbody.append(createAlertRow(alert));
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

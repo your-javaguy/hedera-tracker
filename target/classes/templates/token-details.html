@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${'Hedera Asset Tracker - ' + (token != null ? token.name : 'Token Details')}">Hedera Asset Tracker - Token Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            padding-top: 56px;
+        }
+        .new-transaction {
+            animation: highlight 2s;
+        }
+        @keyframes highlight {
+            0% { background-color: rgba(25, 135, 84, 0.2); }
+            100% { background-color: transparent; }
+        }
+        
+        /* Dark theme styles */
+        body.dark-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card-header {
+            background-color: #2c3136;
+            border-bottom: 1px solid #444;
+        }
+        
+        body.dark-theme .bg-light {
+            background-color: #343a40 !important;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .text-muted {
+            color: #adb5bd !important;
+        }
+        
+        body.dark-theme .form-control,
+        body.dark-theme .form-select {
+            background-color: #495057;
+            color: #f8f9fa;
+            border-color: #666;
+        }
+
+        body.dark-theme .form-control:focus,
+        body.dark-theme .form-select:focus {
+            background-color: #495057;
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .table {
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .table-hover tbody tr:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.075);
+        }
+        
+        body.dark-theme .footer {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-bar-chart-line-fill me-2"></i>Hedera Asset Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tokens">Tokens</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/transactions">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            Alerts
+                            <span class="badge bg-danger" id="alertBadge" th:text="${unacknowledgedAlertsCount != null ? unacknowledgedAlertsCount : '0'}">0</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/tokens">Tokens</a></li>
+                <li class="breadcrumb-item active" aria-current="page" th:text="${token != null ? token.name : 'Token Details'}">Token Details</li>
+            </ol>
+        </nav>
+        
+        <div th:if="${token != null}">
+            <!-- Token Header -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <h1 th:text="${token.name}">Token Name</h1>
+                    <h4 class="text-muted">
+                        <span class="badge bg-secondary" th:text="${token.symbol}">SYMBOL</span>
+                        <span class="badge" th:classappend="${token.isNft ? 'bg-info' : 'bg-primary'}" th:text="${token.isNft ? 'NFT' : 'Fungible Token'}">Type</span>
+                    </h4>
+                    <p class="lead" th:text="${'Token ID: ' + token.tokenId}">Token ID: 0.0.0</p>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Token Stats</h5>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Total Supply
+                                    <span class="badge bg-primary rounded-pill" th:text="${token.totalSupply}">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Transactions
+                                    <span class="badge bg-primary rounded-pill" th:text="${token.transactionCount}">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Decimals
+                                    <span class="badge bg-primary rounded-pill" th:text="${token.decimals}">0</span>
+                                </li>
+                                <li th:if="${token.currentPrice != null}" class="list-group-item d-flex justify-content-between align-items-center">
+                                    Current Price
+                                    <span class="badge bg-primary rounded-pill" th:text="${token.currentPrice}">0</span>
+                                </li>
+                                <li th:if="${token.marketCap != null}" class="list-group-item d-flex justify-content-between align-items-center">
+                                    Market Cap
+                                    <span class="badge bg-primary rounded-pill" th:text="${token.marketCap}">0</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Token Transactions and Alerts Tabs -->
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#transactions">Transactions</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#alerts">Alerts</a>
+                </li>
+            </ul>
+            
+            <!-- Tab Contents -->
+            <div class="tab-content">
+                <!-- Transactions Tab -->
+                <div class="tab-pane fade show active" id="transactions">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Transaction ID</th>
+                                    <th>Type</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tokenTransactionsTable">
+                                <tr th:each="tx : ${transactions}">
+                                    <td th:text="${#temporals.format(tx.timestamp, 'yyyy-MM-dd HH:mm:ss')}">2025-01-01 00:00:00</td>
+                                    <td th:text="${tx.transactionId}">0.0.0-1234567890</td>
+                                    <td th:text="${tx.type}">Type</td>
+                                    <td th:text="${tx.fromAccount}">From</td>
+                                    <td th:text="${tx.toAccount}">To</td>
+                                    <td th:text="${tx.amount}">0</td>
+                                    <td>
+                                        <span class="badge" th:classappend="${tx.status == 'SUCCESS' ? 'bg-success' : 'bg-danger'}" th:text="${tx.status}">Status</span>
+                                    </td>
+                                </tr>
+                                <tr th:if="${transactions == null || transactions.isEmpty()}">
+                                    <td colspan="7" class="text-center">No transactions found for this token</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Alerts Tab -->
+                <div class="tab-pane fade" id="alerts">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Alert Type</th>
+                                    <th>Description</th>
+                                    <th>Transaction ID</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="alert : ${alerts}" th:class="${!alert.acknowledged ? 'table-danger' : ''}">
+                                    <td th:text="${#temporals.format(alert.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2025-01-01 00:00:00</td>
+                                    <td th:text="${alert.alertType}">Type</td>
+                                    <td th:text="${alert.description}">Description</td>
+                                    <td>
+                                        <a th:if="${alert.transactionId != null}" href="#" th:text="${alert.transactionId}">Transaction ID</a>
+                                        <span th:unless="${alert.transactionId != null}">-</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge" th:classappend="${alert.acknowledged ? 'bg-success' : 'bg-danger'}" th:text="${alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}">Status</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-success ack-btn" 
+                                            th:data-id="${alert.id}" 
+                                            th:disabled="${alert.acknowledged}">
+                                            Acknowledge
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr th:if="${alerts == null || alerts.isEmpty()}">
+                                    <td colspan="6" class="text-center">No alerts found for this token</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Token Not Found -->
+        <div class="alert alert-warning" th:if="${token == null}">
+            <h4 class="alert-heading">Token Not Found!</h4>
+            <p>The requested token could not be found. Please check the token ID and try again.</p>
+            <hr>
+            <p class="mb-0">Return to the <a href="/tokens">tokens list</a> to find a valid token.</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-auto">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2023 Hedera Asset Tracker | <a href="https://hedera.com" target="_blank">Hedera</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stomp-websocket@2.3.4-next/lib/stomp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.0.0/dist/chart.umd.min.js"></script>
+    <script th:if="${token != null}">
+        // WebSocket connection
+        let stompClient = null;
+        const tokenId = [[${token.tokenId}]];
+        
+        function connect() {
+            const socket = new SockJS('/hedera-tracker-websocket');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                
+                // Subscribe to transactions with filter
+                stompClient.subscribe('/topic/transactions', function(transaction) {
+                    const tx = JSON.parse(transaction.body);
+                    if (tx.tokenId === tokenId) {
+                        addNewTransaction(tx);
+                    }
+                });
+                
+                // Subscribe to alerts with filter
+                stompClient.subscribe('/topic/alerts', function(alertMsg) {
+                    const alert = JSON.parse(alertMsg.body);
+                    if (alert.tokenId === tokenId) {
+                        // Refresh the page to show new alert
+                        window.location.reload();
+                    }
+                });
+                
+            }, function(error) {
+                console.log('Error connecting to WebSocket: ' + error);
+                setTimeout(connect, 5000); // Try to reconnect after 5 seconds
+            });
+        }
+        
+        function addNewTransaction(tx) {
+            const timestamp = new Date(tx.timestamp).toLocaleString();
+            const newRow = `
+                <tr class="new-transaction">
+                    <td>${timestamp}</td>
+                    <td>${tx.transactionId}</td>
+                    <td>${tx.type}</td>
+                    <td>${tx.fromAccount}</td>
+                    <td>${tx.toAccount}</td>
+                    <td>${tx.amount}</td>
+                    <td>
+                        <span class="badge bg-${tx.status === 'SUCCESS' ? 'success' : 'danger'}">
+                            ${tx.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+            
+            // Add to the top of the table
+            $('#tokenTransactionsTable').prepend(newRow);
+            
+            // Remove the last row if more than 50
+            if ($('#tokenTransactionsTable tr').length > 50) {
+                $('#tokenTransactionsTable tr:last').remove();
+            }
+        }
+        
+        // Handle alert acknowledgement
+        $(document).on('click', '.ack-btn', function() {
+            const alertId = $(this).data('id');
+            $.ajax({
+                url: `/api/alerts/${alertId}/acknowledge`,
+                type: 'PUT',
+                success: function() {
+                    // Update UI
+                    $(`.ack-btn[data-id="${alertId}"]`).prop('disabled', true);
+                    $(`.ack-btn[data-id="${alertId}"]`).closest('tr').removeClass('table-danger');
+                    $(`.ack-btn[data-id="${alertId}"]`).closest('tr').find('.badge').removeClass('bg-danger').addClass('bg-success').text('Acknowledged');
+                    
+                    // Update count
+                    let count = parseInt($('#alertBadge').text()) || 0;
+                    if (count > 0) {
+                        $('#alertBadge').text(count - 1);
+                    }
+                }
+            });
+        });
+        
+        // Connect when the document is ready
+        $(document).ready(function() {
+            connect();
+        });
+    </script>
+    
+    <script>
+        // Apply theme from localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+        });
+        
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                // Check system preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+                
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (localStorage.getItem('theme') === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('dark-theme');
+                        } else {
+                            document.body.classList.remove('dark-theme');
+                        }
+                    }
+                });
+            } else if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+            } else {
+                document.body.classList.remove('dark-theme');
+            }
+        }
+        
+        // Chart initialization
+        $(document).ready(function() {
+            const timeRangeValue = "7d"; // Default to 7 days
+            fetchTokenPriceData(timeRangeValue);
+            fetchTokenVolumeData(timeRangeValue);
+            
+            // Time range selector
+            $('.time-range-btn').click(function() {
+                $('.time-range-btn').removeClass('active');
+                $(this).addClass('active');
+                
+                const timeRange = $(this).data('range');
+                fetchTokenPriceData(timeRange);
+                fetchTokenVolumeData(timeRange);
+            });
+        });
+        
+        // ... rest of your existing JavaScript code ...
+    </script>
+</body>
+</html> 

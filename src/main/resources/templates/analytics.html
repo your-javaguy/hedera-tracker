@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedera Asset Tracker - Advanced Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.css">
+    <style>
+        body {
+            padding-top: 56px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .metrics-card {
+            transition: transform 0.3s;
+        }
+        .metrics-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Dark theme styles */
+        body.dark-theme {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .card-header {
+            background-color: #2c3136;
+            border-bottom: 1px solid #444;
+        }
+        
+        body.dark-theme .table {
+            color: #f8f9fa;
+        }
+        
+        body.dark-theme .bg-light {
+            background-color: #343a40 !important;
+            color: #f8f9fa;
+        }
+
+        body.dark-theme .text-muted {
+            color: #adb5bd !important;
+        }
+        
+        body.dark-theme .form-control,
+        body.dark-theme .form-select {
+            background-color: #495057;
+            color: #f8f9fa;
+            border-color: #666;
+        }
+
+        body.dark-theme .form-control:focus,
+        body.dark-theme .form-select:focus {
+            background-color: #495057;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="bi bi-bar-chart-line-fill me-2"></i>Hedera Asset Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tokens">Tokens</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/transactions">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            Alerts
+                            <span class="badge bg-danger" id="alertBadge" th:text="${unacknowledgedAlertsCount != null ? unacknowledgedAlertsCount : '0'}">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/analytics">Analytics</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> <span sec:authentication="name">User</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/profile"><i class="bi bi-gear"></i> Profile</a></li>
+                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-sliders"></i> Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form th:action="@{/logout}" method="post">
+                                    <button class="dropdown-item" type="submit"><i class="bi bi-box-arrow-right"></i> Logout</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        <h1 class="mb-4">Advanced Analytics</h1>
+        
+        <!-- Date Range Filter -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Date Range</h5>
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label for="startDate" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="startDate">
+                            </div>
+                            <div class="col-md-5">
+                                <label for="endDate" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="endDate">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button id="applyDateFilter" class="btn btn-primary w-100">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Token Selection</h5>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <select class="form-select" id="tokenSelect">
+                                    <option value="all" selected>All Tokens</option>
+                                    <option th:each="token : ${topTokens}" th:value="${token.tokenId}" th:text="${token.name + ' (' + token.symbol + ')'}">Token Name</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button id="applyTokenFilter" class="btn btn-primary w-100">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Key Metrics -->
+        <h2 class="mb-3">Key Metrics</h2>
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white metrics-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Total Volume</h5>
+                        <h2 class="display-4" id="totalVolumeMetric">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white metrics-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Unique Accounts</h5>
+                        <h2 class="display-4" id="uniqueAccountsMetric">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white metrics-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Avg. Transaction Value</h5>
+                        <h2 class="display-4" id="avgTxValueMetric">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white metrics-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Transaction Count</h5>
+                        <h2 class="display-4" id="txCountMetric">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Transaction Volume Chart -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Transaction Volume Over Time</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="volumeChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Distribution Charts -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Transaction Types</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="txTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Top Accounts by Volume</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="accountChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Token Performance -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Token Performance Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="tokenPerformanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Advanced Analysis -->
+        <h2 class="mb-3">Advanced Analysis</h2>
+        <div class="row mb-4">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Transaction Heatmap</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="heatmapChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Token Correlation Matrix</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="correlationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-4">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 Hedera Asset Tracker - <a href="https://hedera.com" target="_blank">Hedera</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    
+    <script>
+        // Apply theme from localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+        });
+        
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                // Check system preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.body.classList.add('dark-theme');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                }
+                
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (localStorage.getItem('theme') === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('dark-theme');
+                        } else {
+                            document.body.classList.remove('dark-theme');
+                        }
+                    }
+                });
+            } else if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+            } else {
+                document.body.classList.remove('dark-theme');
+            }
+        }
+        
+        // Global variables to store chart instances
+        let volumeChart, txTypeChart, accountChart, tokenPerformanceChart, heatmapChart;
+        let currentDateRange = { startDate: null, endDate: null };
+        let currentToken = 'all';
+        
+        $(document).ready(function() {
+            // Set default date range (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            $('#startDate').val(formatDateForInput(thirtyDaysAgo));
+            $('#endDate').val(formatDateForInput(today));
+            
+            currentDateRange.startDate = thirtyDaysAgo;
+            currentDateRange.endDate = today;
+            
+            // Initialize charts with default data
+            initCharts();
+            
+            // Set up event handlers for filters
+            $('#applyDateFilter').click(function() {
+                applyFilters();
+            });
+            
+            $('#applyTokenFilter').click(function() {
+                applyFilters();
+            });
+            
+            // Initialize with default data
+            updateMetrics();
+        });
+        
+        function formatDateForInput(date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        function applyFilters() {
+            // Get date range values
+            const startDateStr = $('#startDate').val();
+            const endDateStr = $('#endDate').val();
+            
+            if (startDateStr && endDateStr) {
+                currentDateRange.startDate = new Date(startDateStr);
+                currentDateRange.endDate = new Date(endDateStr);
+            }
+            
+            // Get selected token
+            currentToken = $('#tokenSelect').val();
+            
+            // Update analytics based on filters
+            updateCharts();
+            updateMetrics();
+        }
+        
+        function updateMetrics() {
+            // Generate realistic metrics based on current filters
+            let baseVolume, baseAccounts, baseTxCount;
+            
+            // Adjust base values based on date range length
+            const daysDiff = Math.round((currentDateRange.endDate - currentDateRange.startDate) / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff <= 7) {
+                baseVolume = 500000;
+                baseAccounts = 1500;
+                baseTxCount = 5000;
+            } else if (daysDiff <= 30) {
+                baseVolume = 2500000;
+                baseAccounts = 4500;
+                baseTxCount = 25000;
+            } else if (daysDiff <= 90) {
+                baseVolume = 7500000;
+                baseAccounts = 12000;
+                baseTxCount = 85000;
+            } else {
+                baseVolume = 25000000;
+                baseAccounts = 35000;
+                baseTxCount = 300000;
+            }
+            
+            // Adjust for selected token
+            let volumeMultiplier = 1;
+            let accountsMultiplier = 1;
+            let txCountMultiplier = 1;
+            
+            if (currentToken !== 'all') {
+                // If specific token is selected, reduce the metrics
+                volumeMultiplier = 0.3;
+                accountsMultiplier = 0.4;
+                txCountMultiplier = 0.35;
+                
+                // Further adjust based on token popularity (mock values)
+                const tokenAdjustments = {
+                    'HBAR': { volume: 1.5, accounts: 1.3, txCount: 1.4 },
+                    'USDC': { volume: 1.2, accounts: 1.1, txCount: 1.2 },
+                    'SAUCE': { volume: 0.5, accounts: 0.6, txCount: 0.5 },
+                    // Add more adjustments for other tokens as needed
+                };
+                
+                if (tokenAdjustments[currentToken]) {
+                    volumeMultiplier *= tokenAdjustments[currentToken].volume;
+                    accountsMultiplier *= tokenAdjustments[currentToken].accounts;
+                    txCountMultiplier *= tokenAdjustments[currentToken].txCount;
+                }
+            }
+            
+            // Add some randomness for realism
+            const randomFactor = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
+            
+            const totalVolume = Math.round(baseVolume * volumeMultiplier * randomFactor);
+            const uniqueAccounts = Math.round(baseAccounts * accountsMultiplier * randomFactor);
+            const txCount = Math.round(baseTxCount * txCountMultiplier * randomFactor);
+            const avgTxValue = Math.round(totalVolume / txCount);
+            
+            // Update UI
+            $('#totalVolumeMetric').text(formatNumber(totalVolume));
+            $('#uniqueAccountsMetric').text(formatNumber(uniqueAccounts));
+            $('#avgTxValueMetric').text(formatNumber(avgTxValue));
+            $('#txCountMetric').text(formatNumber(txCount));
+        }
+        
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            } else {
+                return num.toString();
+            }
+        }
+        
+        function initCharts() {
+            initVolumeChart();
+            initTxTypeChart();
+            initAccountChart();
+            initTokenPerformanceChart();
+            initHeatmapChart();
+        }
+        
+        function updateCharts() {
+            // Get chart data based on filters
+            const volumeData = generateVolumeData(currentDateRange, currentToken);
+            const txTypeData = generateTxTypeData(currentDateRange, currentToken);
+            const accountData = generateAccountData(currentDateRange, currentToken);
+            const tokenPerformanceData = generateTokenPerformanceData(currentDateRange);
+            
+            // Update charts
+            updateVolumeChart(volumeData);
+            updateTxTypeChart(txTypeData);
+            updateAccountChart(accountData);
+            updateTokenPerformanceChart(tokenPerformanceData);
+        }
+        
+        function generateVolumeData(dateRange, token) {
+            const daysDiff = Math.round((dateRange.endDate - dateRange.startDate) / (1000 * 60 * 60 * 24));
+            const labels = [];
+            const volumeData = [];
+            const countData = [];
+            
+            // Generate appropriate labels and data points based on date range
+            const step = daysDiff <= 7 ? 1 : (daysDiff <= 30 ? 3 : (daysDiff <= 90 ? 7 : 30));
+            const dataPoints = Math.min(30, Math.ceil(daysDiff / step));
+            
+            // Based on selected token, adjust the "shape" of the data
+            let trend = 0;
+            let volatility = 0.15;
+            
+            switch (token) {
+                case 'HBAR':
+                    trend = 0.01; // Slight upward trend
+                    volatility = 0.2; // More volatile
+                    break;
+                case 'USDC':
+                    trend = 0; // Stable
+                    volatility = 0.05; // Low volatility (stablecoin)
+                    break;
+                default:
+                    trend = Math.random() * 0.02 - 0.01; // Random trend
+                    volatility = 0.1 + Math.random() * 0.1; // Random volatility
+            }
+            
+            // Generate data
+            let currentDate = new Date(dateRange.startDate);
+            let baseVolume = 100 + Math.random() * 50;
+            let baseCount = 50 + Math.random() * 30;
+            
+            for (let i = 0; i < dataPoints; i++) {
+                // Format date based on range length
+                let label;
+                if (daysDiff <= 7) {
+                    label = currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                } else if (daysDiff <= 30) {
+                    label = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    label = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+                
+                labels.push(label);
+                
+                // Apply trend and volatility
+                baseVolume = Math.max(50, baseVolume * (1 + trend) + baseVolume * (Math.random() * volatility * 2 - volatility));
+                baseCount = Math.max(20, baseCount * (1 + trend * 0.5) + baseCount * (Math.random() * volatility - volatility/2));
+                
+                volumeData.push(Math.round(baseVolume));
+                countData.push(Math.round(baseCount));
+                
+                // Increment date by step
+                currentDate.setDate(currentDate.getDate() + step);
+            }
+            
+            return { labels, volumeData, countData };
+        }
+        
+        function generateTxTypeData(dateRange, token) {
+            // Adjust distribution based on selected token
+            let distribution;
+            
+            if (token === 'all') {
+                distribution = [65, 12, 8, 5, 7, 3]; // Default distribution
+            } else if (token === 'HBAR') {
+                distribution = [75, 5, 3, 2, 10, 5]; // More transfers
+            } else if (token === 'USDC') {
+                distribution = [60, 15, 10, 5, 5, 5]; // More minting/burning (stablecoin)
+            } else {
+                // Random but realistic distribution for other tokens
+                const transfers = 50 + Math.random() * 20;
+                const mints = 5 + Math.random() * 15;
+                const burns = 3 + Math.random() * 10;
+                const wipes = 2 + Math.random() * 6;
+                const associates = 5 + Math.random() * 10;
+                const other = 100 - (transfers + mints + burns + wipes + associates);
+                
+                distribution = [transfers, mints, burns, wipes, associates, other];
+            }
+            
+            return {
+                labels: ['CryptoTransfer', 'TokenMint', 'TokenBurn', 'TokenWipe', 'TokenAssociate', 'Other'],
+                data: distribution
+            };
+        }
+        
+        function generateAccountData(dateRange, token) {
+            // Generate top accounts based on selected token
+            let accounts;
+            let volumes;
+            
+            if (token === 'all') {
+                accounts = ['0.0.123456', '0.0.987654', '0.0.234567', '0.0.876543', '0.0.345678'];
+                volumes = [8500, 6200, 5400, 4800, 3900];
+            } else if (token === 'HBAR') {
+                accounts = ['0.0.800000', '0.0.600000', '0.0.123456', '0.0.500000', '0.0.400000'];
+                volumes = [12500, 9800, 7600, 5900, 4200];
+            } else if (token === 'USDC') {
+                accounts = ['0.0.654321', '0.0.111222', '0.0.987654', '0.0.777888', '0.0.444555'];
+                volumes = [15000, 12000, 9000, 7000, 5000];
+            } else {
+                // Random but plausible accounts for other tokens
+                accounts = ['0.0.' + Math.floor(Math.random() * 900000 + 100000),
+                           '0.0.' + Math.floor(Math.random() * 900000 + 100000),
+                           '0.0.' + Math.floor(Math.random() * 900000 + 100000),
+                           '0.0.' + Math.floor(Math.random() * 900000 + 100000),
+                           '0.0.' + Math.floor(Math.random() * 900000 + 100000)];
+                           
+                const baseVolume = 3000 + Math.random() * 5000;
+                volumes = [
+                    Math.round(baseVolume * (1 + Math.random() * 0.5)),
+                    Math.round(baseVolume * (0.8 + Math.random() * 0.3)),
+                    Math.round(baseVolume * (0.6 + Math.random() * 0.3)),
+                    Math.round(baseVolume * (0.4 + Math.random() * 0.3)),
+                    Math.round(baseVolume * (0.2 + Math.random() * 0.3))
+                ];
+            }
+            
+            return { accounts, volumes };
+        }
+        
+        function generateTokenPerformanceData(dateRange) {
+            const daysDiff = Math.round((dateRange.endDate - dateRange.startDate) / (1000 * 60 * 60 * 24));
+            const dataPoints = Math.min(30, daysDiff);
+            
+            // Generate labels
+            const labels = Array.from({length: dataPoints}, (_, i) => {
+                const date = new Date(dateRange.startDate);
+                date.setDate(date.getDate() + i * Math.ceil(daysDiff / dataPoints));
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            
+            // Create a baseline and variations for 3 different tokens
+            const baseline = Array.from({length: dataPoints}, (_, i) => 100 + i * 2 + Math.random() * 10 - 5);
+            const token1Data = baseline.map(val => val * (1 + Math.random() * 0.1));
+            const token2Data = baseline.map(val => val * (1 - Math.random() * 0.05));
+            const token3Data = baseline.map(val => val * (1 + Math.random() * 0.15 - 0.05));
+            
+            return { labels, token1Data, token2Data, token3Data };
+        }
+        
+        function initVolumeChart() {
+            const ctx = document.getElementById('volumeChart').getContext('2d');
+            const initialData = generateVolumeData(currentDateRange, currentToken);
+            
+            volumeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: initialData.labels,
+                    datasets: [
+                        {
+                            label: 'Volume',
+                            data: initialData.volumeData,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            yAxisID: 'y',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Transaction Count',
+                            data: initialData.countData,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                            yAxisID: 'y1',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Volume'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Count'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateVolumeChart(data) {
+            volumeChart.data.labels = data.labels;
+            volumeChart.data.datasets[0].data = data.volumeData;
+            volumeChart.data.datasets[1].data = data.countData;
+            volumeChart.update();
+        }
+        
+        function initTxTypeChart() {
+            const ctx = document.getElementById('txTypeChart').getContext('2d');
+            
+            // Sample data
+            const data = {
+                labels: ['CryptoTransfer', 'TokenMint', 'TokenBurn', 'TokenWipe', 'TokenAssociate', 'Other'],
+                datasets: [{
+                    data: [65, 12, 8, 5, 7, 3],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)'
+                    ],
+                    borderWidth: 1
+                }]
+            };
+            
+            txTypeChart = new Chart(ctx, {
+                type: 'pie',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTxTypeChart(data) {
+            txTypeChart.data.datasets[0].data = data.data;
+            txTypeChart.update();
+        }
+        
+        function initAccountChart() {
+            const ctx = document.getElementById('accountChart').getContext('2d');
+            
+            // Sample data
+            const accounts = ['0.0.123456', '0.0.987654', '0.0.234567', '0.0.876543', '0.0.345678'];
+            const volumes = [8500, 6200, 5400, 4800, 3900];
+            
+            accountChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: accounts,
+                    datasets: [{
+                        label: 'Transaction Volume',
+                        data: volumes,
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateAccountChart(data) {
+            accountChart.data.labels = data.accounts;
+            accountChart.data.datasets[0].data = data.volumes;
+            accountChart.update();
+        }
+        
+        function initTokenPerformanceChart() {
+            const ctx = document.getElementById('tokenPerformanceChart').getContext('2d');
+            
+            // Generate random data for demonstration
+            const labels = Array.from({length: 30}, (_, i) => {
+                const date = new Date();
+                date.setDate(date.getDate() - 29 + i);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            
+            // Create a baseline and variations for 3 different tokens
+            const baseline = Array.from({length: 30}, (_, i) => 100 + i * 2 + Math.random() * 10 - 5);
+            const token1Data = baseline.map(val => val * (1 + Math.random() * 0.1));
+            const token2Data = baseline.map(val => val * (1 - Math.random() * 0.05));
+            const token3Data = baseline.map(val => val * (1 + Math.random() * 0.15 - 0.05));
+            
+            tokenPerformanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'HBAR',
+                            data: token1Data,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'transparent',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'USDC',
+                            data: token2Data,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'transparent',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'SAUCE',
+                            data: token3Data,
+                            borderColor: 'rgba(255, 205, 86, 1)',
+                            backgroundColor: 'transparent',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Relative Performance'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTokenPerformanceChart(data) {
+            tokenPerformanceChart.data.labels = data.labels;
+            tokenPerformanceChart.data.datasets[0].data = data.token1Data;
+            tokenPerformanceChart.data.datasets[1].data = data.token2Data;
+            tokenPerformanceChart.data.datasets[2].data = data.token3Data;
+            tokenPerformanceChart.update();
+        }
+        
+        function initHeatmapChart() {
+            const ctx = document.getElementById('heatmapChart').getContext('2d');
+            
+            // Days of week
+            const yLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            
+            // Hours of day
+            const xLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            
+            // Generate random data (7x24 matrix)
+            const data = Array.from({length: 7}, () => 
+                Array.from({length: 24}, () => Math.floor(Math.random() * 100))
+            );
+            
+            // Flatten the data for chart.js
+            const flattenedData = [];
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 24; x++) {
+                    flattenedData.push({
+                        x: x,
+                        y: y,
+                        v: data[y][x]
+                    });
+                }
+            }
+            
+            heatmapChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Transaction Heatmap',
+                        data: flattenedData,
+                        backgroundColor: context => {
+                            const value = context.raw.v;
+                            const alpha = Math.min(1, Math.max(0.1, value / 100));
+                            return `rgba(75, 192, 192, ${alpha})`;
+                        },
+                        pointRadius: 10,
+                        pointHoverRadius: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            min: -0.5,
+                            max: 23.5,
+                            ticks: {
+                                callback: function(value) {
+                                    return xLabels[value];
+                                },
+                                stepSize: 1
+                            },
+                            title: {
+                                display: true,
+                                text: 'Hour of Day'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            min: -0.5,
+                            max: 6.5,
+                            ticks: {
+                                callback: function(value) {
+                                    return yLabels[value];
+                                },
+                                stepSize: 1
+                            },
+                            title: {
+                                display: true,
+                                text: 'Day of Week'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    return `${yLabels[point.y]}, ${xLabels[point.x]}: ${point.v} transactions`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function initCorrelationChart() {
+            const ctx = document.getElementById('correlationChart').getContext('2d');
+            
+            // Token names
+            const tokens = ['HBAR', 'USDC', 'ETH', 'SAUCE', 'WHBAR'];
+            
+            // Generate a symmetric correlation matrix
+            const correlationMatrix = [];
+            for (let i = 0; i < tokens.length; i++) {
+                const row = [];
+                for (let j = 0; j < tokens.length; j++) {
+                    if (i === j) {
+                        row.push(1); // Perfect correlation with self
+                    } else if (correlationMatrix[j] && correlationMatrix[j][i] !== undefined) {
+                        row.push(correlationMatrix[j][i]); // Use the already computed value for symmetry
+                    } else {
+                        // Generate random correlation between -1 and 1
+                        row.push((Math.random() * 2 - 1).toFixed(2));
+                    }
+                }
+                correlationMatrix.push(row);
+            }
+            
+            // Flatten the data for chart.js
+            const flattenedData = [];
+            for (let y = 0; y < tokens.length; y++) {
+                for (let x = 0; x < tokens.length; x++) {
+                    flattenedData.push({
+                        x: x,
+                        y: y,
+                        v: correlationMatrix[y][x]
+                    });
+                }
+            }
+            
+            new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Correlation Matrix',
+                        data: flattenedData,
+                        backgroundColor: context => {
+                            const value = context.raw.v;
+                            if (value > 0) {
+                                // Positive correlation (blue)
+                                return `rgba(0, 0, 255, ${Math.abs(value)})`;
+                            } else {
+                                // Negative correlation (red)
+                                return `rgba(255, 0, 0, ${Math.abs(value)})`;
+                            }
+                        },
+                        pointRadius: 15,
+                        pointHoverRadius: 17
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            min: -0.5,
+                            max: tokens.length - 0.5,
+                            ticks: {
+                                callback: function(value) {
+                                    return tokens[value];
+                                },
+                                stepSize: 1
+                            },
+                            title: {
+                                display: true,
+                                text: 'Token'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            min: -0.5,
+                            max: tokens.length - 0.5,
+                            ticks: {
+                                callback: function(value) {
+                                    return tokens[value];
+                                },
+                                stepSize: 1
+                            },
+                            title: {
+                                display: true,
+                                text: 'Token'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    return `${tokens[point.y]} to ${tokens[point.x]}: ${point.v}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html> 
